@@ -127,9 +127,13 @@ func createSystemDirectories(filePath, cacheDir string) error {
 		return fmt.Errorf("failed to create cache directory: %w", err)
 	}
 
-	// Set permissions on cache directory so all users can write
-	if err := os.Chmod(cacheDir, 0777); err != nil {
-		return fmt.Errorf("failed to set cache directory permissions: %w", err)
+	// Set permissions on cache directory so all users can write (only if needed)
+	if info, err := os.Stat(cacheDir); err == nil {
+		if info.Mode().Perm() != 0777 {
+			if err := os.Chmod(cacheDir, 0777); err != nil {
+				return fmt.Errorf("failed to set cache directory permissions: %w", err)
+			}
+		}
 	}
 
 	return nil
@@ -261,12 +265,14 @@ func (s *Storage) SetCacheFile(url string, data []byte) error {
 		return fmt.Errorf("failed to marshal cache entry: %w", err)
 	}
 
-	// Ensure cache directory exists
-	if err := os.MkdirAll(s.cacheDir, 0755); err != nil {
-		return fmt.Errorf("failed to create cache directory: %w", err)
+	// Ensure cache directory exists (only if we have permission)
+	if _, err := os.Stat(s.cacheDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(s.cacheDir, 0755); err != nil {
+			return fmt.Errorf("failed to create cache directory: %w", err)
+		}
 	}
 
-	// Write cache file
+	// Write cache file directly
 	if err := os.WriteFile(cacheFile, jsonData, 0666); err != nil {
 		return fmt.Errorf("failed to write cache file: %w", err)
 	}
@@ -359,10 +365,12 @@ func (s *Storage) load() error {
 
 // save writes the current read status to disk
 func (s *Storage) save() error {
-	// Ensure directory exists
+	// Ensure directory exists (only if we have permission)
 	dir := filepath.Dir(s.filePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
 	}
 
 	s.status.LastCheck = time.Now()
@@ -372,28 +380,26 @@ func (s *Storage) save() error {
 		return fmt.Errorf("failed to marshal read status: %w", err)
 	}
 
-	// Write to temporary file first, then rename for atomicity
-	tempFile := s.filePath + ".tmp"
-
 	// Set appropriate permissions based on whether we're using system-wide storage
 	var perm os.FileMode = 0644
 	if s.isSystemWide {
 		perm = 0666
 	}
 
-	if err := os.WriteFile(tempFile, data, perm); err != nil {
-		return fmt.Errorf("failed to write temporary file: %w", err)
+	// Write directly to the file in-place
+	if err := os.WriteFile(s.filePath, data, perm); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
 	}
 
-	if err := os.Rename(tempFile, s.filePath); err != nil {
-		os.Remove(tempFile) // Clean up on failure
-		return fmt.Errorf("failed to rename temporary file: %w", err)
-	}
-
-	// Set final permissions on the file if system-wide
-	if s.isSystemWide {
-		if err := os.Chmod(s.filePath, 0666); err != nil {
-			return fmt.Errorf("failed to set file permissions: %w", err)
+	// Set final permissions on the file if system-wide and we're root
+	if s.isSystemWide && os.Geteuid() == 0 {
+		// Check if file already has correct permissions
+		if info, err := os.Stat(s.filePath); err == nil {
+			if info.Mode().Perm() != 0666 {
+				if err := os.Chmod(s.filePath, 0666); err != nil {
+					return fmt.Errorf("failed to set file permissions: %w", err)
+				}
+			}
 		}
 	}
 

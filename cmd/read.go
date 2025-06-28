@@ -95,12 +95,14 @@ Use --all to mark all items as read without displaying them.`,
 
 func readUnreadInteractive(allItems []feed.Item, store *storage.Storage) error {
 	reader := bufio.NewReader(os.Stdin)
+	unreadFound := false
 
 	for _, item := range allItems {
 		if store.IsRead(item.ID) {
 			continue
 		}
 
+		unreadFound = true
 		displayItem(item)
 
 		fmt.Print("\nMark as read and continue? [Y/n]: ")
@@ -119,6 +121,11 @@ func readUnreadInteractive(allItems []feed.Item, store *storage.Storage) error {
 			fmt.Println("Skipped.")
 		}
 		fmt.Println()
+	}
+
+	if !unreadFound {
+		fmt.Println("No unread news items found.")
+		fmt.Println("Use 'informant list' to see all items or 'informant list --unread' to see only unread items.")
 	}
 
 	return nil
