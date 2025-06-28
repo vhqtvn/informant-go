@@ -18,19 +18,19 @@ HOOK_INSTALL=${HOOK_INSTALL:-true}
 
 # Helper functions
 log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+    echo -e "${BLUE}[INFO]${NC} $1" >&2
 }
 
 log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
+    echo -e "${GREEN}[SUCCESS]${NC} $1" >&2
 }
 
 log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    echo -e "${YELLOW}[WARNING]${NC} $1" >&2
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "${RED}[ERROR]${NC} $1" >&2
 }
 
 # Detect architecture
@@ -151,7 +151,7 @@ install_binary() {
         if [[ ":$PATH:" != *":$user_bin:"* ]]; then
             log_warning "~/.local/bin is not in your PATH"
             log_warning "Add the following to your shell profile (.bashrc, .zshrc, etc.):"
-            echo "    export PATH=\"\$HOME/.local/bin:\$PATH\""
+            echo "    export PATH=\"\$HOME/.local/bin:\$PATH\"" >&2
         fi
         
         # Update INSTALL_DIR for hook installation
@@ -169,7 +169,7 @@ install_hook() {
     if ! check_root; then
         log_warning "Pacman hook installation requires root privileges"
         log_info "Run the following command after installation to install the hook:"
-        echo "    sudo $INSTALL_DIR/$BINARY_NAME install"
+        echo "    sudo $INSTALL_DIR/$BINARY_NAME install" >&2
         return 0
     fi
     
@@ -184,7 +184,7 @@ install_hook() {
         log_success "Pacman hook installed successfully"
     else
         log_warning "Failed to install pacman hook. You can install it manually later with:"
-        echo "    sudo $BINARY_NAME install"
+        echo "    sudo $BINARY_NAME install" >&2
     fi
 }
 
@@ -198,12 +198,12 @@ cleanup() {
 
 # Main installation function
 main() {
-    echo -e "${BLUE}"
-    echo "========================================="
-    echo "         InformantGo Installer"
-    echo "   Arch Linux News Reader & Hook"
-    echo "========================================="
-    echo -e "${NC}"
+    echo -e "${BLUE}" >&2
+    echo "=========================================" >&2
+    echo "         InformantGo Installer" >&2
+    echo "   Arch Linux News Reader & Hook" >&2
+    echo "=========================================" >&2
+    echo -e "${NC}" >&2
     
     # Check dependencies
     if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
@@ -252,22 +252,22 @@ main() {
     install_hook
     
     # Show success message and usage
-    echo
+    echo >&2
     log_success "InformantGo installed successfully!"
-    echo
-    echo -e "${BLUE}Usage:${NC}"
-    echo "  $BINARY_NAME check           # Check for unread news"
-    echo "  $BINARY_NAME list            # List all news items"
-    echo "  $BINARY_NAME list --unread   # List only unread items"
-    echo "  $BINARY_NAME read            # Interactively read items"
-    echo "  $BINARY_NAME tui             # Launch interactive TUI"
-    echo
+    echo >&2
+    echo -e "${BLUE}Usage:${NC}" >&2
+    echo "  $BINARY_NAME check           # Check for unread news" >&2
+    echo "  $BINARY_NAME list            # List all news items" >&2
+    echo "  $BINARY_NAME list --unread   # List only unread items" >&2
+    echo "  $BINARY_NAME read            # Interactively read items" >&2
+    echo "  $BINARY_NAME tui             # Launch interactive TUI" >&2
+    echo >&2
     if check_root; then
-        echo "  $BINARY_NAME install        # Install pacman hook"
-        echo "  $BINARY_NAME uninstall      # Remove pacman hook"
-        echo
+        echo "  $BINARY_NAME install        # Install pacman hook" >&2
+        echo "  $BINARY_NAME uninstall      # Remove pacman hook" >&2
+        echo >&2
     fi
-    echo -e "${BLUE}Documentation:${NC} https://github.com/$REPO"
+    echo -e "${BLUE}Documentation:${NC} https://github.com/$REPO" >&2
 }
 
 # Handle command line arguments
@@ -278,21 +278,21 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help|-h)
-            echo "InformantGo Installer"
-            echo
-            echo "Usage: $0 [OPTIONS]"
-            echo
-            echo "Options:"
-            echo "  --no-hook    Skip pacman hook installation"
-            echo "  --help, -h   Show this help message"
-            echo
-            echo "Environment Variables:"
-            echo "  HOOK_INSTALL=false   Skip pacman hook installation"
+            echo "InformantGo Installer" >&2
+            echo >&2
+            echo "Usage: $0 [OPTIONS]" >&2
+            echo >&2
+            echo "Options:" >&2
+            echo "  --no-hook    Skip pacman hook installation" >&2
+            echo "  --help, -h   Show this help message" >&2
+            echo >&2
+            echo "Environment Variables:" >&2
+            echo "  HOOK_INSTALL=false   Skip pacman hook installation" >&2
             exit 0
             ;;
         *)
             log_error "Unknown option: $1"
-            echo "Use --help for usage information"
+            echo "Use --help for usage information" >&2
             exit 1
             ;;
     esac
