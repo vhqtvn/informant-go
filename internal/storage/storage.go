@@ -36,6 +36,12 @@ type Storage struct {
 	cacheDir     string
 }
 
+// showStorageFallbackWarning displays a warning about falling back to per-user storage
+func showStorageFallbackWarning() {
+	fmt.Println("Warning: Cannot write to system-wide storage (/var/lib/informant-go.dat)")
+	fmt.Println("Falling back to per-user storage. This means read status won't be shared between users.")
+}
+
 // New creates a new Storage instance
 func New() (*Storage, error) {
 	return NewWithConfirmation(true)
@@ -75,8 +81,7 @@ func NewWithConfirmation(requireConfirmation bool) (*Storage, error) {
 				}
 			} else {
 				// Show warning but don't require confirmation
-				fmt.Println("Warning: Cannot write to system-wide storage (/var/lib/informant-go.dat)")
-				fmt.Println("Falling back to per-user storage. This means read status won't be shared between users.")
+				showStorageFallbackWarning()
 			}
 
 			var err error
@@ -132,27 +137,58 @@ func createSystemDirectories(filePath, cacheDir string) error {
 
 // canUseSystemStorage checks if the current user can use system-wide storage
 func canUseSystemStorage(filePath, cacheDir string) bool {
-	// Test if we can write to the system file location
-	if err := testWrite(filepath.Dir(filePath)); err != nil {
+	// Check if we can write to the storage file
+	if !canWriteToFile(filePath) {
 		return false
 	}
 
-	// Test if we can write to the cache directory
-	if err := testWrite(cacheDir); err != nil {
+	// Check if we can write to the cache directory
+	if !canWriteToDirectory(cacheDir) {
 		return false
 	}
 
 	return true
 }
 
-// testWrite tests if we can write to a directory
-func testWrite(dir string) error {
-	testFile := filepath.Join(dir, ".informant_test_write")
-	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
-		return err
+// canWriteToFile checks if we can write to a specific file
+func canWriteToFile(filePath string) bool {
+	// Check if file exists
+	if _, err := os.Stat(filePath); err != nil {
+		if os.IsNotExist(err) {
+			// File doesn't exist, check if we can write to the directory
+			return canWriteToDirectory(filepath.Dir(filePath))
+		}
+		return false
 	}
-	os.Remove(testFile)
-	return nil
+
+	// File exists, try to open it for writing
+	file, err := os.OpenFile(filePath, os.O_WRONLY, 0)
+	if err != nil {
+		return false
+	}
+	file.Close()
+	return true
+}
+
+// canWriteToDirectory checks if we can write to a directory
+func canWriteToDirectory(dir string) bool {
+	// Check if directory exists
+	info, err := os.Stat(dir)
+	if err != nil {
+		return false
+	}
+
+	if !info.IsDir() {
+		return false
+	}
+
+	// Try to create a temporary file in the directory
+	tempFile := filepath.Join(dir, ".informant_test_write")
+	if err := os.WriteFile(tempFile, []byte("test"), 0644); err != nil {
+		return false
+	}
+	os.Remove(tempFile)
+	return true
 }
 
 // getUserStoragePaths returns per-user storage paths
@@ -175,8 +211,7 @@ func getUserStoragePaths() (string, string, error) {
 
 // confirmFallback asks user for confirmation to use per-user storage
 func confirmFallback() bool {
-	fmt.Println("Warning: Cannot write to system-wide storage (/var/lib/informant-go.dat)")
-	fmt.Println("Falling back to per-user storage. This means read status won't be shared between users.")
+	showStorageFallbackWarning()
 	fmt.Print("Continue with per-user storage? [y/N]: ")
 
 	reader := bufio.NewReader(os.Stdin)
