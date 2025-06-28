@@ -16,8 +16,8 @@ var (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:     "informant",
-	Short:   "An Arch Linux News reader and pacman hook",
+	Use:   "informant",
+	Short: "An Arch Linux News reader and pacman hook",
 	Long: `informant is an Arch Linux News reader designed to be used as a pacman hook.
 It can interrupt pacman transactions to ensure you have read the news first.
 
@@ -37,6 +37,11 @@ func init() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.informantrc.json)")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
+	rootCmd.PersistentFlags().Bool("no-confirm", false, "skip confirmation prompts for storage fallback")
+
+	// Bind flags to viper
+	viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
+	viper.BindPFlag("no-confirm", rootCmd.PersistentFlags().Lookup("no-confirm"))
 }
 
 // initConfig reads in config file and ENV variables.

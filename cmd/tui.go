@@ -33,7 +33,7 @@ Key bindings:
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		store, err := storage.New()
+		store, err := storage.NewWithConfirmation(!viper.GetBool("no-confirm"))
 		if err != nil {
 			return fmt.Errorf("failed to initialize storage: %w", err)
 		}
@@ -41,7 +41,7 @@ Key bindings:
 		// Collect all items
 		var allItems []feed.Item
 		for _, feedCfg := range cfg.Feeds {
-			items, err := feed.ParseFeed(feedCfg.URL)
+			items, err := feed.ParseFeedWithStorage(feedCfg.URL, store)
 			if err != nil {
 				if viper.GetBool("verbose") {
 					fmt.Fprintf(os.Stderr, "Warning: Failed to parse feed %s: %v\n", feedCfg.Name, err)
@@ -72,7 +72,7 @@ Key bindings:
 		// Initialize and run TUI
 		model := tui.NewModel(allItems, store)
 		p := tea.NewProgram(model, tea.WithAltScreen())
-		
+
 		if _, err := p.Run(); err != nil {
 			return fmt.Errorf("TUI error: %w", err)
 		}

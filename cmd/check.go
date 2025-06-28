@@ -27,7 +27,7 @@ there are unread news items.`,
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		store, err := storage.New()
+		store, err := storage.NewWithConfirmation(!viper.GetBool("no-confirm"))
 		if err != nil {
 			return fmt.Errorf("failed to initialize storage: %w", err)
 		}
@@ -36,7 +36,7 @@ there are unread news items.`,
 		var unreadItems []feed.Item
 
 		for _, feedCfg := range cfg.Feeds {
-			items, err := feed.ParseFeed(feedCfg.URL)
+			items, err := feed.ParseFeedWithStorage(feedCfg.URL, store)
 			if err != nil {
 				if viper.GetBool("verbose") {
 					fmt.Fprintf(os.Stderr, "Warning: Failed to parse feed %s: %v\n", feedCfg.Name, err)

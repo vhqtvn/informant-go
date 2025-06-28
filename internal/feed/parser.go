@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -63,28 +64,58 @@ type AtomLink struct {
 	Rel  string `xml:"rel,attr"`
 }
 
-// ParseFeed fetches and parses an RSS or Atom feed
+// Storage interface for caching (to avoid circular imports)
+type CacheStorage interface {
+	GetCacheFile(url string, maxAge time.Duration) ([]byte, bool)
+	SetCacheFile(url string, data []byte) error
+}
+
+// ParseFeed fetches and parses an RSS or Atom feed (no caching)
 func ParseFeed(url string) ([]Item, error) {
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch feed: %w", err)
-	}
-	defer resp.Body.Close()
+	return ParseFeedWithStorage(url, nil)
+}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP error: %d", resp.StatusCode)
-	}
-
-	// Read response body
+// ParseFeedWithStorage fetches and parses an RSS or Atom feed with optional caching
+func ParseFeedWithStorage(url string, storage CacheStorage) ([]Item, error) {
 	var body []byte
-	buf := make([]byte, 1024)
-	for {
-		n, err := resp.Body.Read(buf)
-		if n > 0 {
-			body = append(body, buf[:n]...)
+
+	// Try to get from cache first if storage is provided
+	if storage != nil {
+		if cachedData, found := storage.GetCacheFile(url, 15*time.Minute); found {
+			body = cachedData
 		}
+	}
+
+	// If we don't have cached data, fetch from HTTP
+	if body == nil {
+		resp, err := http.Get(url)
 		if err != nil {
-			break
+			return nil, fmt.Errorf("failed to fetch feed: %w", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("HTTP error: %d", resp.StatusCode)
+		}
+
+		// Read response body
+		buf := make([]byte, 1024)
+		for {
+			n, err := resp.Body.Read(buf)
+			if n > 0 {
+				body = append(body, buf[:n]...)
+			}
+			if err != nil {
+				break
+			}
+		}
+
+		// Cache the data if storage is provided
+		if storage != nil {
+			if err := storage.SetCacheFile(url, body); err != nil {
+				// Don't fail on cache errors, just log and continue
+				fmt.Fprintf(os.Stderr, "Warning: Failed to cache feed data: %v\n", err)
+			}
 		}
 	}
 
@@ -193,27 +224,27 @@ func parseAtom(data []byte) ([]Item, error) {
 // parseTime attempts to parse various time formats commonly used in feeds
 func parseTime(timeStr string) (time.Time, error) {
 	timeStr = strings.TrimSpace(timeStr)
-	
+
 	// Common RSS date format: "Mon, 02 Jan 2006 15:04:05 MST"
 	if t, err := time.Parse(time.RFC1123, timeStr); err == nil {
 		return t, nil
 	}
-	
+
 	// Alternative RSS format: "Mon, 02 Jan 2006 15:04:05 -0700"
 	if t, err := time.Parse(time.RFC1123Z, timeStr); err == nil {
 		return t, nil
 	}
-	
+
 	// Atom format: "2006-01-02T15:04:05Z"
 	if t, err := time.Parse(time.RFC3339, timeStr); err == nil {
 		return t, nil
 	}
-	
+
 	// Alternative format: "2006-01-02T15:04:05-07:00"
 	if t, err := time.Parse("2006-01-02T15:04:05-07:00", timeStr); err == nil {
 		return t, nil
 	}
-	
+
 	// Simple format: "2006-01-02 15:04:05"
 	if t, err := time.Parse("2006-01-02 15:04:05", timeStr); err == nil {
 		return t, nil
@@ -227,16 +258,16 @@ func cleanHTML(content string) string {
 	// Remove HTML tags
 	re := regexp.MustCompile(`<[^>]*>`)
 	content = re.ReplaceAllString(content, "")
-	
+
 	// Unescape HTML entities
 	content = html.UnescapeString(content)
-	
+
 	// Clean up whitespace
 	content = strings.TrimSpace(content)
-	
+
 	// Replace multiple newlines with double newline
 	re = regexp.MustCompile(`\n\s*\n\s*\n`)
 	content = re.ReplaceAllString(content, "\n\n")
-	
+
 	return content
 }

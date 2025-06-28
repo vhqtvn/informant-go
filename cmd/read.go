@@ -35,7 +35,7 @@ Use --all to mark all items as read without displaying them.`,
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		store, err := storage.New()
+		store, err := storage.NewWithConfirmation(!viper.GetBool("no-confirm"))
 		if err != nil {
 			return fmt.Errorf("failed to initialize storage: %w", err)
 		}
@@ -43,7 +43,7 @@ Use --all to mark all items as read without displaying them.`,
 		// Collect all items
 		var allItems []feed.Item
 		for _, feedCfg := range cfg.Feeds {
-			items, err := feed.ParseFeed(feedCfg.URL)
+			items, err := feed.ParseFeedWithStorage(feedCfg.URL, store)
 			if err != nil {
 				if viper.GetBool("verbose") {
 					fmt.Fprintf(os.Stderr, "Warning: Failed to parse feed %s: %v\n", feedCfg.Name, err)
@@ -95,14 +95,14 @@ Use --all to mark all items as read without displaying them.`,
 
 func readUnreadInteractive(allItems []feed.Item, store *storage.Storage) error {
 	reader := bufio.NewReader(os.Stdin)
-	
+
 	for _, item := range allItems {
 		if store.IsRead(item.ID) {
 			continue
 		}
 
 		displayItem(item)
-		
+
 		fmt.Print("\nMark as read and continue? [Y/n]: ")
 		response, err := reader.ReadString('\n')
 		if err != nil {
@@ -148,7 +148,7 @@ func readSpecificItem(itemRef string, allItems []feed.Item, store *storage.Stora
 	}
 
 	displayItem(*targetItem)
-	
+
 	if err := store.MarkAsRead(targetItem.ID); err != nil {
 		return fmt.Errorf("failed to mark item as read: %w", err)
 	}
@@ -171,9 +171,9 @@ func displayItem(item feed.Item) {
 		reader := bufio.NewReader(os.Stdin)
 		response, _ := reader.ReadString('\n')
 		response = strings.TrimSpace(strings.ToLower(response))
-		
+
 		if response == "p" {
-			showInPager(fmt.Sprintf("Title: %s\nDate: %s\nFeed: %s\n\n%s", 
+			showInPager(fmt.Sprintf("Title: %s\nDate: %s\nFeed: %s\n\n%s",
 				item.Title, item.Published.Format("2006-01-02 15:04:05"), item.FeedName, item.Content))
 		}
 	}
@@ -190,7 +190,7 @@ func showInPager(content string) {
 	cmd.Stdin = strings.NewReader(content)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	
+
 	if err := cmd.Run(); err != nil {
 		// Fallback to simple output if pager fails
 		fmt.Print(content)
