@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.19'
+
+    - name: Install UPX
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y upx-ucl
+
+    - name: Get version from tag
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Build binaries
+      run: |
+        # Create dist directory
+        mkdir -p dist
+        
+        # Build for Linux AMD64
+        echo "Building for Linux AMD64..."
+        GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/informant-linux-amd64 .
+        echo "Original size (AMD64): $(du -h dist/informant-linux-amd64 | cut -f1)"
+        
+        # Build for Linux ARM64
+        echo "Building for Linux ARM64..."
+        GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o dist/informant-linux-arm64 .
+        echo "Original size (ARM64): $(du -h dist/informant-linux-arm64 | cut -f1)"
+        
+        # Compress binaries with UPX
+        echo "Compressing binaries with UPX..."
+        upx --best --lzma dist/informant-linux-amd64
+        upx --best --lzma dist/informant-linux-arm64
+        
+        echo "Compressed size (AMD64): $(du -h dist/informant-linux-amd64 | cut -f1)"
+        echo "Compressed size (ARM64): $(du -h dist/informant-linux-arm64 | cut -f1)"
+        
+        # Create checksums (after compression)
+        cd dist
+        sha256sum * > checksums.txt
+        cd ..
+
+    - name: Create release notes
+      id: release_notes
+      run: |
+        cat << 'EOF' > release_notes.md
+        ## InformantGo ${{ steps.version.outputs.VERSION }}
+        
+        A modern Go rewrite of [informant](https://github.com/bradford-smith94/informant) - An Arch Linux News reader and pacman hook.
+        
+        ### Installation
+        
+        1. Download the appropriate binary for your architecture
+        2. Make it executable: `chmod +x informant-linux-*`
+        3. Move to your PATH: `sudo mv informant-linux-* /usr/local/bin/informant`
+        4. Install the pacman hook: `sudo informant install`
+        
+        ### What's New
+        
+        - Fast, compiled Go binary
+        - Interactive TUI mode (`informant tui`)
+        - Easy pacman hook installation (`informant install`)
+        - Multiple feed support
+        - Full compatibility with original informant
+        
+        ### Usage
+        
+        ```bash
+        informant check           # Check for unread news (used by pacman hook)
+        informant list            # List all news items
+        informant list --unread   # List only unread items
+        informant read            # Interactively read unread items
+        informant tui             # Launch interactive terminal UI
+        sudo informant install   # Install pacman hook
+        sudo informant uninstall # Remove pacman hook
+        ```
+        
+        ### Checksums
+        
+        See `checksums.txt` for SHA256 checksums of the binaries.
+        EOF
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.version.outputs.VERSION }}
+        name: InformantGo ${{ steps.version.outputs.VERSION }}
+        body_path: release_notes.md
+        draft: false
+        prerelease: false
+        files: |
+          dist/informant-linux-amd64
+          dist/informant-linux-arm64
+          dist/checksums.txt
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

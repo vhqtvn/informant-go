@@ -1,0 +1,18 @@
+{
+  "feeds": [
+    {
+      "name": "Arch Linux News",
+      "url": "https://archlinux.org/feeds/news/",
+      "title-key": "title",
+      "body-key": "summary",
+      "timestamp-key": "published"
+    },
+    {
+      "name": "Arch Linux 32 News",
+      "url": "https://archlinux32.org/news/feed/",
+      "title-key": "title",
+      "body-key": "summary", 
+      "timestamp-key": "published"
+    }
+  ]
+}
